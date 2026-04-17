@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc; /* Un color de fondo claro y moderno (slate-50) */
+  --foreground: #0f172a; /* Texto oscuro (slate-900) */
 }
 
 @theme inline {
@@ -12,12 +12,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Nota: Eliminamos el bloque de @media (prefers-color-scheme: dark) a propósito */
 
 body {
   background: var(--background);
