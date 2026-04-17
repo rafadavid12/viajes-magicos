@@ -1,3 +1,5 @@
+
+import Link from "next/link";
 export default function Footer() {
   return (
     <footer className="bg-white border-t border-slate-100 pt-20 pb-10">
