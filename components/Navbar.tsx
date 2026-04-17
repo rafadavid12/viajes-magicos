@@ -6,13 +6,13 @@ import { onAuthStateChanged, signOut, User } from "firebase/auth";
 
 export default function Navbar() {
   const [usuario, setUsuario] = useState<User | null>(null);
-  const [cargando, setCargando] = useState(true); // ¡NUEVO! Le decimos que empiece cargando
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    // Este observador escucha si hay un usuario logueado en la memoria del navegador
+    // Tu lógica original de Firebase
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUsuario(user);
-      setCargando(false); // Cuando Firebase termina de revisar, quitamos el estado de carga
+      setCargando(false);
     });
     return () => unsubscribe();
   }, []);
@@ -22,49 +22,66 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="flex justify-between items-center p-6 bg-white shadow-sm sticky top-0 z-50">
-      <Link href="/" className="text-2xl font-bold text-blue-600 hover:text-blue-700 transition">
-        Viajes Mágicos ✨
-      </Link>
-      
-      <div className="space-x-6 font-medium flex items-center">
-        <Link href="/destinos" className="hover:text-blue-500 transition hidden md:block">Destinos</Link>
-        <Link href="/paquetes" className="hover:text-blue-500 transition hidden md:block">Paquetes</Link>
+    <nav className="sticky top-0 z-50 w-full backdrop-blur-xl bg-white/80 border-b border-slate-200/50 transition-all duration-300">
+      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         
-        {/* LOGICA DE RENDERIZADO (El cerebro del menú) */}
-        {cargando ? (
-          // 1. Mientras Firebase piensa, mostramos un pequeño círculo giratorio (Spinner)
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        ) : usuario ? (
-          // 2. Si Firebase dice que SÍ hay usuario, mostramos tu foto
-          <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-full border border-slate-200">
-            <span className="text-sm text-slate-600 font-semibold hidden md:block">
-              {usuario.displayName?.split(" ")[0]}
-            </span>
-            {usuario.photoURL ? (
-              <img 
-                src={usuario.photoURL} 
-                alt="Perfil" 
-                className="w-8 h-8 rounded-full border border-slate-300"
-              />
-            ) : (
-               <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-                 {usuario.displayName?.charAt(0)}
-               </div>
-            )}
-            <button 
-              onClick={cerrarSesion} 
-              className="text-sm text-red-500 font-bold hover:underline ml-2"
-            >
-              Salir
-            </button>
+        {/* IDENTIDAD: DevSquad + Viajes Mágicos */}
+        <Link href="/" className="group flex flex-col items-start leading-none outline-none">
+          <span className="text-[10px] font-black text-blue-600/40 uppercase tracking-[0.3em] mb-1 transition-colors group-hover:text-blue-600">
+            DevSquad
+          </span>
+          <span className="text-2xl font-black tracking-tighter text-slate-800 transition-colors">
+            Viajes <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-400">Mágicos</span>
+          </span>
+        </Link>
+        
+        <div className="flex items-center gap-8 font-medium">
+          {/* ENLACES DE NAVEGACIÓN */}
+          <div className="hidden md:flex items-center gap-8 border-r border-slate-200 pr-8">
+            <Link href="/destinos" className="text-[11px] font-black text-slate-500 hover:text-blue-600 uppercase tracking-[0.2em] transition-colors">
+              Destinos
+            </Link>
+            <Link href="/paquetes" className="text-[11px] font-black text-slate-500 hover:text-blue-600 uppercase tracking-[0.2em] transition-colors">
+              Paquetes
+            </Link>
           </div>
-        ) : (
-          // 3. Si Firebase confirma que NO hay nadie, mostramos el botón azul normal
-          <Link href="/login" className="bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition shadow-md hover:shadow-lg">
-            Iniciar Sesión
-          </Link>
-        )}
+          
+          {/* LÓGICA DE RENDERIZADO (Tu lógica original) */}
+          <div className="flex items-center">
+            {cargando ? (
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            ) : usuario ? (
+              <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-full py-1.5 pl-4 pr-1.5 shadow-sm hover:shadow-md transition-all">
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wider hidden md:block">
+                  {usuario.displayName?.split(" ")[0]}
+                </span>
+                
+                {usuario.photoURL ? (
+                  <img 
+                    src={usuario.photoURL} 
+                    alt="Perfil" 
+                    className="w-8 h-8 rounded-full border border-slate-100 object-cover shadow-sm"
+                  />
+                ) : (
+                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black text-[10px]">
+                     {usuario.displayName?.charAt(0)}
+                   </div>
+                )}
+                
+                <button 
+                  onClick={cerrarSesion} 
+                  className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all"
+                >
+                  Salir
+                </button>
+              </div>
+            ) : (
+              <Link href="/login" className="bg-slate-900 text-white px-8 py-3 rounded-full hover:bg-blue-600 transition-all shadow-lg text-[11px] font-black uppercase tracking-widest">
+                Iniciar Sesión
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
     </nav>
   );
