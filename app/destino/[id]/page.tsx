@@ -7,6 +7,7 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const [destino, setDestino] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
+  const [procesandoPago, setProcesandoPago] = useState(false);
 
   // --- 1. NUEVA LÓGICA DE GRUPOS (TARIFAS DIFERENCIADAS) ---
   const [adultos, setAdultos] = useState(2);
@@ -67,6 +68,34 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
   
   const granTotal = subtotalTour + costoTransporteFinal + subtotalHospedaje;
 
+  const manejarPago = async () => {
+  setProcesandoPago(true);
+  try {
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idDestino: id,
+        nombreDestino: destino?.nombre || "Destino DevSquad",
+        granTotal: granTotal,
+        totalPersonas: totalPersonas,
+      }),
+    });
+    
+    const data = await res.json();
+    
+    if (data.url) {
+      // Redirigimos a la página segura de Stripe
+      window.location.href = data.url; 
+    } else {
+      console.error("No se recibió URL de Stripe", data);
+      setProcesandoPago(false);
+    }
+  } catch (error) {
+    console.error("Error al procesar el pago", error);
+    setProcesandoPago(false);
+  }
+};
   // Datos simulados de la agencia
   const etiquetas = destino?.etiquetas || ["🐾 Pet Friendly", "👴 Accesible", "👨‍👩‍👧 Familiar"];
   const duracion = destino?.duracion || "3 Días / 2 Noches";
@@ -78,105 +107,113 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
 
   if (cargando) return <div className="flex justify-center py-20"><div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"></div></div>;
 
-  return (
-    <main className="min-h-screen bg-gray-50 pb-20">
-      {/* BANNER PRINCIPAL */}
-      <div className="h-[450px] w-full relative overflow-hidden bg-slate-900">
-        <img src={destino?.imagen} className="w-full h-full object-cover opacity-60 scale-105 hover:scale-100 transition-transform duration-1000" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent flex items-end p-12">
-          <div className="text-white w-full max-w-7xl mx-auto">
-            <div className="flex flex-wrap gap-3 mb-4">
-              <span className="bg-blue-600 text-white px-4 py-1 rounded-full font-bold text-sm shadow-lg">⏳ {duracion}</span>
-              {etiquetas.map((tag: string) => (
-                <span key={tag} className="bg-white/20 backdrop-blur-md text-white px-4 py-1 rounded-full font-medium text-sm border border-white/30 shadow-lg">
-                  {tag}
-                </span>
-              ))}
-            </div>
-            <h1 className="text-6xl md:text-7xl font-black italic drop-shadow-lg">{destino?.nombre}</h1>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-10 mt-12 px-6">
+return (
+    <main className="min-h-screen bg-slate-50 pb-20 font-sans">
+      
+      {/* 1. BANNER PRINCIPAL (NUEVO DISEÑO INMERSIVO DEVSQUAD) */}
+      <section className="relative w-full pt-40 pb-48 flex flex-col items-center justify-center overflow-hidden bg-slate-900">
+        {/* Imagen de fondo difuminada */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-40 transition-transform duration-1000 scale-105"
+          style={{ backgroundImage: `url(${destino?.imagen})` }} 
+        ></div>
         
-        <div className="lg:col-span-2 space-y-10">
+        {/* Degradado que funde el banner con el fondo de la página */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-50 z-10"></div>
+
+        <div className="relative z-20 text-center px-6 max-w-4xl mx-auto w-full">
+          <div className="flex flex-wrap justify-center gap-3 mb-6">
+            <span className="bg-blue-600/90 backdrop-blur-md text-white px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg">
+              ⏳ {duracion}
+            </span>
+            {etiquetas.map((tag: string) => (
+              <span key={tag} className="bg-white/10 backdrop-blur-md text-white px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest border border-white/20 shadow-lg">
+                {tag}
+              </span>
+            ))}
+          </div>
+          <h1 className="text-6xl md:text-8xl font-black text-white drop-shadow-2xl tracking-tighter italic">
+            {destino?.nombre}
+          </h1>
+        </div>
+      </section>
+
+      {/* CONTENEDOR PRINCIPAL: Subimos el contenido con -mt-20 para que flote sobre el banner */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-10 -mt-20 relative z-30 px-6">
+        
+        {/* COLUMNA IZQUIERDA: TARJETAS SUAVIZADAS */}
+        <div className="lg:col-span-2 space-y-8">
           
-          <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">✨ Itinerario del Paquete</h3>
+          <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+            <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">✨ Itinerario del Paquete</h3>
             <div className="space-y-4">
               {itinerario.map((actividad: string, index: number) => (
-                <div key={index} className="flex items-start gap-4 p-4 hover:bg-slate-50 rounded-xl transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black shrink-0">{index + 1}</div>
+                <div key={index} className="flex items-start gap-4 p-4 hover:bg-slate-50 rounded-2xl transition-colors border border-transparent hover:border-slate-100">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black shrink-0">{index + 1}</div>
                   <p className="text-slate-600 font-medium pt-1">{actividad}</p>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* NUEVO PANEL DE PASAJEROS (EDADES Y DESCUENTOS) */}
-          <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+          <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
             <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-2xl font-bold text-slate-800">👥 Perfil de Viajeros</h3>
+                <h3 className="text-2xl font-black text-slate-800">👥 Perfil de Viajeros</h3>
                 <p className="text-sm text-slate-500 mt-1">Ingresa las edades para aplicar promociones.</p>
               </div>
-              <span className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold text-sm">
-                Total: {totalPersonas} Pasajeros
+              <span className="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest shadow-md">
+                Total: {totalPersonas}
               </span>
             </div>
 
             <div className="space-y-6">
-              {/* Adultos */}
-              <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+              <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
                 <div>
                   <h4 className="font-bold text-slate-800 text-lg">Adultos</h4>
-                  <p className="text-xs text-slate-500">12 a 59 años</p>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">12 a 59 años</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => adultos > 1 && setAdultos(adultos - 1)} className="w-10 h-10 rounded-full border-2 border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm">-</button>
+                  <button onClick={() => adultos > 1 && setAdultos(adultos - 1)} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm active:scale-95 transition-transform">-</button>
                   <span className="text-2xl font-black text-slate-800 w-6 text-center">{adultos}</span>
-                  <button onClick={() => setAdultos(adultos + 1)} className="w-10 h-10 rounded-full border-2 border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm">+</button>
+                  <button onClick={() => setAdultos(adultos + 1)} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm active:scale-95 transition-transform">+</button>
                 </div>
               </div>
 
-              {/* Adultos Mayores */}
-              <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl border border-blue-100">
+              <div className="flex justify-between items-center p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-slate-800 text-lg">Adultos Mayores</h4>
-                    <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-md font-bold uppercase">-20% INAPAM</span>
+                    <span className="bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-sm">-20% INAPAM</span>
                   </div>
-                  <p className="text-xs text-blue-600/70 font-medium">60+ años</p>
+                  <p className="text-xs text-blue-600/70 font-black uppercase tracking-widest mt-1">60+ años</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => mayores > 0 && setMayores(mayores - 1)} className="w-10 h-10 rounded-full border-2 border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm">-</button>
+                  <button onClick={() => mayores > 0 && setMayores(mayores - 1)} className="w-10 h-10 rounded-full border border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm active:scale-95 transition-transform">-</button>
                   <span className="text-2xl font-black text-slate-800 w-6 text-center">{mayores}</span>
-                  <button onClick={() => setMayores(mayores + 1)} className="w-10 h-10 rounded-full border-2 border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm">+</button>
+                  <button onClick={() => setMayores(mayores + 1)} className="w-10 h-10 rounded-full border border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm active:scale-95 transition-transform">+</button>
                 </div>
               </div>
 
-              {/* Niños */}
-              <div className="flex justify-between items-center p-4 bg-orange-50 rounded-2xl border border-orange-100">
+              <div className="flex justify-between items-center p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-slate-800 text-lg">Niños</h4>
-                    <span className="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded-md font-bold uppercase">-50% Desc.</span>
+                    <span className="bg-orange-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-sm">-50% Desc</span>
                   </div>
-                  <p className="text-xs text-orange-600/70 font-medium">3 a 11 años</p>
+                  <p className="text-xs text-orange-600/70 font-black uppercase tracking-widest mt-1">3 a 11 años</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => ninos > 0 && setNinos(ninos - 1)} className="w-10 h-10 rounded-full border-2 border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm">-</button>
+                  <button onClick={() => ninos > 0 && setNinos(ninos - 1)} className="w-10 h-10 rounded-full border border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm active:scale-95 transition-transform">-</button>
                   <span className="text-2xl font-black text-slate-800 w-6 text-center">{ninos}</span>
-                  <button onClick={() => setNinos(ninos + 1)} className="w-10 h-10 rounded-full border-2 border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm">+</button>
+                  <button onClick={() => setNinos(ninos + 1)} className="w-10 h-10 rounded-full border border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm active:scale-95 transition-transform">+</button>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* SECCIÓN TRANSPORTE */}
-          <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <h3 className="text-2xl font-bold mb-6 text-slate-800">🚐 Logística de Transporte</h3>
+          <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+            <h3 className="text-2xl font-black mb-6 text-slate-800">🚐 Logística de Transporte</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
                 { tipo: "Toluca Centro", costo: 350, zona: "Centro", detalle: "Salida 08:00 AM", esDomicilio: false },
@@ -184,30 +221,29 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
                 { tipo: "A Domicilio", costo: 0, zona: "Maps", detalle: "Recogida exacta", esDomicilio: true }
               ].map((t) => (
                 <button key={t.tipo} onClick={() => { setTransporte(t); setCotizacionMaps(0); setDireccion(""); }}
-                  className={`p-5 rounded-2xl border-2 text-left transition-all ${transporte.tipo === t.tipo ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-100 hover:border-blue-200'}`}>
+                  className={`p-5 rounded-2xl border-2 text-left transition-all active:scale-95 ${transporte.tipo === t.tipo ? 'border-blue-600 bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-blue-200'}`}>
                   <p className="font-bold text-slate-800">{t.tipo}</p>
-                  <p className="text-xs text-slate-500 mb-2 h-4">{t.detalle}</p>
-                  {!t.esDomicilio && <p className="font-black text-blue-600 text-lg">${t.costo} <span className="text-[10px] font-normal text-slate-400 uppercase">/ pers</span></p>}
-                  {t.esDomicilio && <p className="text-xs text-blue-600 font-bold mt-2 flex items-center gap-1">Cotizar 🗺️</p>}
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-2 h-4 mt-1">{t.detalle}</p>
+                  {!t.esDomicilio && <p className="font-black text-blue-600 text-xl">${t.costo} <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">/ pers</span></p>}
+                  {t.esDomicilio && <p className="text-xs text-blue-600 font-black mt-2 flex items-center gap-1 uppercase tracking-widest">Cotizar 🗺️</p>}
                 </button>
               ))}
             </div>
 
-            {/* COTIZADOR GOOGLE MAPS */}
             {transporte.esDomicilio && (
-              <div className="mt-6 p-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl">
+              <div className="mt-6 p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl animate-fade-in-up">
                 <h4 className="font-bold text-slate-800 mb-2">🗺️ Cotizar Viaje Privado Domicilio</h4>
                 <div className="flex flex-col sm:flex-row gap-4 mt-4">
                   <input type="text" placeholder="Ej. San Mateo Atenco..." value={direccion} onChange={(e) => setDireccion(e.target.value)}
-                    className="flex-1 p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 outline-none" />
+                    className="flex-1 p-4 rounded-xl border border-slate-200 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition-all" />
                   <button onClick={simularGoogleMaps} disabled={calculando}
-                    className="bg-slate-900 text-white font-bold px-8 py-4 rounded-xl hover:bg-slate-800 transition disabled:opacity-50">
+                    className="bg-slate-900 text-white font-black uppercase tracking-widest text-xs px-8 py-4 rounded-xl hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50">
                     {calculando ? "Calculando..." : "Ver Tarifa"}
                   </button>
                 </div>
                 {cotizacionMaps > 0 && (
-                  <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl flex justify-between items-center text-green-800">
-                    <p className="font-bold">✅ Vehículo Asignado</p>
+                  <div className="mt-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex justify-between items-center text-emerald-800 animate-fade-in-up">
+                    <p className="font-black text-xs uppercase tracking-widest">✅ Vehículo Asignado</p>
                     <p className="text-2xl font-black">${cotizacionMaps}</p>
                   </div>
                 )}
@@ -215,9 +251,8 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
             )}
           </section>
 
-          {/* MEJORAS DE ALOJAMIENTO */}
-          <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <h3 className="text-2xl font-bold text-slate-800 mb-6">🏨 Tu Hospedaje</h3>
+          <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+            <h3 className="text-2xl font-black text-slate-800 mb-6">🏨 Tu Hospedaje</h3>
             <div className="space-y-4">
               {[
                 { 
@@ -232,17 +267,17 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
                 }
               ].map((h) => (
                 <div key={h.tipo} onClick={() => setHospedaje(h)}
-                  className={`flex flex-col md:flex-row gap-6 p-4 rounded-3xl border-2 cursor-pointer transition-all ${hospedaje.tipo === h.tipo ? 'border-blue-600 bg-blue-50 shadow-md transform scale-[1.01]' : 'border-slate-100 hover:bg-slate-50'}`}>
+                  className={`flex flex-col md:flex-row gap-6 p-4 rounded-3xl border-2 cursor-pointer transition-all active:scale-[0.98] ${hospedaje.tipo === h.tipo ? 'border-blue-600 bg-blue-50/30 shadow-md' : 'border-slate-100 hover:bg-slate-50'}`}>
                   <img src={h.foto} className="w-full md:w-56 h-32 object-cover rounded-2xl" alt={h.tipo} />
                   <div className="flex-1 py-2 pr-2">
                     <div className="flex justify-between items-start">
                       <h4 className="text-lg font-bold text-slate-800">{h.tipo} <span className="text-yellow-500 text-sm">{h.estrellas}</span></h4>
                       <div className="text-right">
                         <p className="font-black text-blue-600 text-xl">{h.costoNoche === 0 ? "GRATIS" : `+ $${h.costoNoche}`}</p>
-                        {h.costoNoche > 0 && <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Noche x Hab.</p>}
+                        {h.costoNoche > 0 && <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1">Noche x Hab</p>}
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 mt-2">{h.descripcion}</p>
+                    <p className="text-sm text-slate-500 mt-2 font-medium">{h.descripcion}</p>
                   </div>
                 </div>
               ))}
@@ -250,58 +285,60 @@ export default function DetalleDestino({ params }: { params: Promise<{ id: strin
           </section>
         </div>
 
-        {/* EL NUEVO TICKET DESGLOSADO */}
+        {/* 2. COLUMNA DERECHA: FACTURA EFECTO CRISTAL */}
         <div className="relative">
-          <div className="bg-white p-8 rounded-[40px] shadow-2xl border border-slate-100 sticky top-10">
-            <div className="text-center mb-6 border-b border-slate-100 pb-6">
+          <div className="sticky top-32 bg-white/70 backdrop-blur-2xl border border-white rounded-[2.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.15)] p-8 md:p-10 z-10 transition-all">
+            <div className="text-center mb-6 border-b border-slate-200/50 pb-6">
               <h3 className="text-3xl font-black text-slate-800">Factura Proforma</h3>
-              <p className="text-slate-400 text-[10px] uppercase tracking-[0.2em] mt-2 font-bold">Viajes Mágicos SA de CV</p>
+              <p className="text-blue-600 text-[9px] uppercase tracking-[0.3em] mt-2 font-black">Viajes Mágicos by DevSquad</p>
             </div>
             
             <div className="space-y-4 mb-8 text-slate-600">
               
-              {/* Desglose de Pasajeros */}
               {adultos > 0 && (
                 <div className="flex justify-between items-center">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Tour Adultos ({adultos}x)</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Tour Adultos ({adultos}x)</div>
                   <div className="font-bold text-slate-800">${subtotalAdultos}</div>
                 </div>
               )}
               {mayores > 0 && (
-                <div className="flex justify-between items-center text-blue-700 bg-blue-50/50 p-2 rounded-lg -mx-2">
-                  <div className="text-xs font-bold uppercase tracking-wider">Tercera Edad ({mayores}x)</div>
-                  <div className="font-bold">${subtotalMayores}</div>
+                <div className="flex justify-between items-center text-blue-700 bg-blue-50/80 p-3 rounded-xl -mx-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em]">Tercera Edad ({mayores}x)</div>
+                  <div className="font-black">${subtotalMayores}</div>
                 </div>
               )}
               {ninos > 0 && (
-                <div className="flex justify-between items-center text-orange-700 bg-orange-50/50 p-2 rounded-lg -mx-2">
-                  <div className="text-xs font-bold uppercase tracking-wider">Menores ({ninos}x)</div>
-                  <div className="font-bold">${subtotalNinos}</div>
+                <div className="flex justify-between items-center text-orange-700 bg-orange-50/80 p-3 rounded-xl -mx-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em]">Menores ({ninos}x)</div>
+                  <div className="font-black">${subtotalNinos}</div>
                 </div>
               )}
 
-              <div className="h-px bg-slate-100 my-2"></div>
+              <div className="h-px bg-slate-200/50 my-4"></div>
 
-              {/* Logística */}
               <div className="flex justify-between items-center">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Logística Viaje</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Logística Viaje</div>
                 <div className="font-bold text-slate-800">${costoTransporteFinal}</div>
               </div>
-              <div className="flex justify-between items-center pb-4 border-b border-dashed border-slate-200">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Hotel ({numHabitaciones} hab)</div>
+              <div className="flex justify-between items-center pb-6 border-b border-dashed border-slate-300">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Hotel ({numHabitaciones} hab)</div>
                 <div className="font-bold text-slate-800">${subtotalHospedaje}</div>
               </div>
               
               <div className="flex justify-between items-center pt-2">
-                <span className="text-slate-400 font-black text-sm uppercase tracking-widest">Total a Pagar</span>
+                <span className="text-slate-400 font-black text-xs uppercase tracking-widest">Total a Pagar</span>
                 <span className="text-4xl font-black text-blue-600 tracking-tighter">${granTotal}</span>
               </div>
             </div>
 
-            <button disabled={transporte.esDomicilio && cotizacionMaps === 0}
-              className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl hover:bg-blue-600 transition-all transform hover:-translate-y-1 active:scale-95 text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
-              {transporte.esDomicilio && cotizacionMaps === 0 ? "Calcula tu ruta 👆" : "Proceder al Pago"}
-            </button>
+            <button 
+            onClick={manejarPago}
+            disabled={(transporte.esDomicilio && cotizacionMaps === 0) || procesandoPago}
+            className="w-full bg-slate-900 text-white font-black uppercase tracking-widest text-sm py-5 rounded-[1.5rem] shadow-xl shadow-slate-900/20 hover:bg-blue-600 hover:shadow-blue-600/30 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+            {procesandoPago 
+              ? "Conectando al banco..." 
+              : (transporte.esDomicilio && cotizacionMaps === 0 ? "Calcula tu ruta 👆" : "Proceder al Pago")}
+          </button>
           </div>
         </div>
 
