@@ -1,19 +1,29 @@
 "use client";
-import { useEffect, useState } from "react";
-import { auth, db } from "../../lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore"; // Importamos updateDoc
+import { useEffect, useState, useRef } from "react";
+import { auth, db, storage } from "../../lib/firebase";
+import { onAuthStateChanged, updateProfile } from "firebase/auth";
+import { doc, getDoc, updateDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+function obtenerIniciales(nombre: string | null | undefined): string {
+  if (!nombre) return "VM";
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  return partes[0][0].toUpperCase();
+}
 
 export default function Perfil() {
   const [usuarioAuth, setUsuarioAuth] = useState<any>(null);
   const [datosPerfil, setDatosPerfil] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
+  const [notificacion, setNotificacion] = useState<{ tipo: 'exito' | 'error', mensaje: string } | null>(null);
   
-  // Nuevos estados para el "Modo Edición"
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [cargandoFoto, setCargandoFoto] = useState(false);
+  
   const [formulario, setFormulario] = useState({
     nombre: "",
     primerApellido: "",
@@ -21,195 +31,257 @@ export default function Perfil() {
     telefono: ""
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (notificacion) {
+      const timer = setTimeout(() => setNotificacion(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notificacion]);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUsuarioAuth(user);
         const docRef = doc(db, "usuarios", user.uid);
-        const docSnap = await getDoc(docRef);
         
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setDatosPerfil(data);
-          // Pre-llenamos el formulario con sus datos reales para cuando le dé a Editar
-          setFormulario({
-            nombre: data.nombre || "",
-            primerApellido: data.primerApellido || "",
-            segundoApellido: data.segundoApellido || "",
-            telefono: data.telefono || ""
-          });
-        }
+        const unsubscribeSnap = onSnapshot(docRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setDatosPerfil(data);
+            setFormulario({
+              nombre: data.nombre || user.displayName || "",
+              primerApellido: data.primerApellido || "",
+              segundoApellido: data.segundoApellido || "",
+              telefono: data.telefono || ""
+            });
+          } else {
+            // Si es usuario de Google nuevo, le creamos su perfil base
+            const nuevoUsuario = {
+              nombre: user.displayName || "",
+              primerApellido: "",
+              segundoApellido: "",
+              telefono: "",
+              correo: user.email,
+              fechaRegistro: new Date().toISOString(),
+              photoURL: user.photoURL || ""
+            };
+            await setDoc(docRef, nuevoUsuario);
+          }
+          setCargando(false);
+        }, (error) => {
+          console.error("Error Firestore:", error);
+          setCargando(false);
+        });
+
+        return () => unsubscribeSnap();
       } else {
         router.push("/login");
+        setCargando(false);
       }
-      setCargando(false);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, [router]);
 
-  // Función maestra para guardar en la base de datos
+  const manejarCambio = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormulario({ ...formulario, [e.target.name]: e.target.value });
+  };
+
   const guardarCambios = async () => {
+    const nombreLimpio = formulario.nombre.trim();
+    const primerLimpio = formulario.primerApellido.trim();
+    let segundoLimpio = formulario.segundoApellido.trim();
+
+    if (!nombreLimpio || !primerLimpio) {
+      setNotificacion({ tipo: 'error', mensaje: 'Nombre y Primer Apellido son obligatorios' });
+      return;
+    }
+
+    if (!segundoLimpio) { segundoLimpio = "X"; }
+
     setGuardando(true);
     try {
       const docRef = doc(db, "usuarios", usuarioAuth.uid);
-      await updateDoc(docRef, {
-        nombre: formulario.nombre,
-        primerApellido: formulario.primerApellido,
-        segundoApellido: formulario.segundoApellido,
-        telefono: formulario.telefono
-      });
-      
-      // Actualizamos la pantalla con los nuevos datos y cerramos el modo edición
-      setDatosPerfil({ ...datosPerfil, ...formulario });
+      const nuevosDatos = {
+        nombre: nombreLimpio,
+        primerApellido: primerLimpio,
+        segundoApellido: segundoLimpio,
+        telefono: formulario.telefono.trim() || "S/N"
+      };
+
+      await updateDoc(docRef, nuevosDatos);
       setEditando(false); 
+      setNotificacion({ tipo: 'exito', mensaje: '¡Perfil actualizado!' });
     } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("Hubo un error al guardar los cambios.");
+      setNotificacion({ tipo: 'error', mensaje: 'Error al guardar cambios' });
     } finally {
       setGuardando(false);
     }
   };
 
-  // Función para manejar lo que el usuario escribe en los inputs
-  const manejarCambio = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormulario({
-      ...formulario,
-      [e.target.name]: e.target.value
-    });
+  const manejarSubidaImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setCargandoFoto(true);
+    try {
+      const storageRef = ref(storage, `usuarios/${usuarioAuth.uid}/foto_perfil.jpg`);
+      const uploadTask = uploadBytesResumable(storageRef, archivo);
+      await uploadTask;
+      const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+      await updateProfile(usuarioAuth, { photoURL: downloadURL });
+      await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { photoURL: downloadURL });
+      setNotificacion({ tipo: 'exito', mensaje: 'Imagen actualizada' });
+    } catch (error) {
+      setNotificacion({ tipo: 'error', mensaje: 'Error al subir foto' });
+    } finally {
+      setCargandoFoto(false);
+    }
   };
 
-  if (cargando) {
-    return (
-      <div className="min-h-screen flex justify-center items-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  if (cargando) return (
+    <div className="min-h-screen flex justify-center items-center bg-slate-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+  );
+
+  const photoURL = datosPerfil?.photoURL || usuarioAuth?.photoURL;
+  const iniciales = obtenerIniciales(datosPerfil?.nombre);
 
   return (
     <main className="min-h-screen bg-slate-50 pt-32 pb-12 px-6">
-      <div className="max-w-4xl mx-auto">
-        
-        <div className="mb-8 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto">
+        <input type="file" ref={fileInputRef} onChange={manejarSubidaImagen} accept="image/*" className="hidden" />
+
+        {/* HEADER */}
+        <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Mi Perfil</h1>
-            <p className="text-slate-500 font-medium mt-1">Gestiona tu información personal y preferencias.</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Mi Perfil</h1>
+            <p className="text-slate-500 font-medium mt-2">Gestiona tu información personal y preferencias.</p>
           </div>
-          <Link href="/mis-viajes" className="bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition-all text-sm uppercase tracking-widest shadow-sm">
+          <Link href="/mis-viajes" className="bg-white border border-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black hover:bg-slate-50 transition-all text-xs uppercase tracking-widest shadow-sm">
             Ver Mis Viajes
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Tarjeta de Resumen (Izquierda) */}
-          <div className="md:col-span-1 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center text-center">
-            <img 
-              src={usuarioAuth?.photoURL || `https://ui-avatars.com/api/?name=${datosPerfil?.nombre || 'Viajero'}&background=0f172a&color=fff&size=150`} 
-              alt="Perfil" 
-              className="w-32 h-32 rounded-full object-cover mb-6 border-4 border-slate-50 shadow-lg"
-            />
-            <h2 className="text-xl font-black text-slate-900">
+          {/* TARJETA IZQUIERDA */}
+          <div className="lg:col-span-4 bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center text-center h-fit">
+            <div className="relative group cursor-pointer mb-8" onClick={() => fileInputRef.current?.click()}>
+              {photoURL ? (
+                <img src={photoURL} alt="Perfil" className="w-40 h-40 rounded-full object-cover border-4 border-white shadow-xl" />
+              ) : (
+                <div className="w-40 h-40 rounded-full bg-slate-900 flex items-center justify-center border-4 border-white shadow-xl">
+                  <span className="text-5xl font-black text-white">{iniciales}</span>
+                </div>
+              )}
+              <div className={`absolute inset-0 bg-slate-900/60 rounded-full flex items-center justify-center transition-all ${cargandoFoto ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                {cargandoFoto ? <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div> : <span className="text-3xl">📸</span>}
+              </div>
+            </div>
+            
+            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
               {datosPerfil?.nombre} {datosPerfil?.primerApellido}
             </h2>
-            <p className="text-slate-500 font-medium text-sm mt-1">{usuarioAuth?.email}</p>
-            <div className="mt-6 w-full pt-6 border-t border-slate-100">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Miembro desde</p>
-              <p className="text-slate-700 font-medium">
-                {datosPerfil?.fechaRegistro ? new Date(datosPerfil.fechaRegistro).toLocaleDateString('es-MX', { year: 'numeric', month: 'long' }) : "Reciente"}
+            <p className="text-blue-600 font-bold text-sm mb-8">{usuarioAuth?.email}</p>
+            
+            <div className="w-full pt-8 border-t border-slate-50">
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] mb-1">Miembro desde</p>
+              <p className="text-slate-900 font-black text-sm uppercase">
+                {datosPerfil?.fechaRegistro ? new Date(datosPerfil.fechaRegistro).toLocaleDateString('es-MX', { year: 'numeric', month: 'long' }) : "Abril de 2026"}
               </p>
             </div>
           </div>
 
-          {/* Tarjeta de Detalles (Derecha) */}
-          <div className="md:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                <span className="w-2 h-6 bg-blue-600 rounded-sm inline-block"></span>
+          {/* TARJETA DERECHA (FORMULARIO) */}
+          <div className="lg:col-span-8 bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div className="flex justify-between items-center mb-10">
+              <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                <span className="w-1.5 h-8 bg-blue-600 rounded-full inline-block"></span>
                 Información de Contacto
               </h3>
               {editando && (
-                <button 
-                  onClick={() => setEditando(false)}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
-                >
+                <button onClick={() => setEditando(false)} className="text-[10px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-all">
                   Cancelar
                 </button>
               )}
             </div>
             
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">Nombre(s)</p>
-                  {editando ? (
-                    <input type="text" name="nombre" value={formulario.nombre} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-100 text-slate-900 p-3.5 rounded-xl focus:outline-none focus:border-blue-600 transition-all font-medium" />
-                  ) : (
-                    <p className="text-slate-900 font-medium bg-slate-50 p-4 rounded-xl border border-slate-100">{datosPerfil?.nombre || "No registrado"}</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">Apellido Paterno</p>
-                  {editando ? (
-                    <input type="text" name="primerApellido" value={formulario.primerApellido} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-100 text-slate-900 p-3.5 rounded-xl focus:outline-none focus:border-blue-600 transition-all font-medium" />
-                  ) : (
-                    <p className="text-slate-900 font-medium bg-slate-50 p-4 rounded-xl border border-slate-100">{datosPerfil?.primerApellido || "No registrado"}</p>
-                  )}
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* CAMPO: NOMBRE */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre(s)</label>
+                {editando ? (
+                  <input type="text" name="nombre" value={formulario.nombre} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-600 p-4 rounded-2xl font-bold text-slate-900 outline-none shadow-lg shadow-blue-600/10" />
+                ) : (
+                  <div className="bg-slate-100 p-5 rounded-2xl border border-slate-200 font-bold text-slate-500">{datosPerfil?.nombre || "N/A"}</div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">Apellido Materno</p>
-                  {editando ? (
-                    <input type="text" name="segundoApellido" value={formulario.segundoApellido} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-100 text-slate-900 p-3.5 rounded-xl focus:outline-none focus:border-blue-600 transition-all font-medium" />
-                  ) : (
-                    <p className="text-slate-900 font-medium bg-slate-50 p-4 rounded-xl border border-slate-100">{datosPerfil?.segundoApellido || "No registrado"}</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">Teléfono Móvil</p>
-                  {editando ? (
-                    <input type="tel" name="telefono" value={formulario.telefono} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-100 text-slate-900 p-3.5 rounded-xl focus:outline-none focus:border-blue-600 transition-all font-medium" />
-                  ) : (
-                    <p className="text-slate-900 font-medium bg-slate-50 p-4 rounded-xl border border-slate-100">{datosPerfil?.telefono || "No registrado"}</p>
-                  )}
-                </div>
+              {/* CAMPO: PRIMER APELLIDO */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Primer Apellido</label>
+                {editando ? (
+                  <input type="text" name="primerApellido" value={formulario.primerApellido} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-600 p-4 rounded-2xl font-bold text-slate-900 outline-none shadow-lg shadow-blue-600/10" />
+                ) : (
+                  <div className="bg-slate-100 p-5 rounded-2xl border border-slate-200 font-bold text-slate-500">{datosPerfil?.primerApellido || "N/A"}</div>
+                )}
               </div>
 
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">Correo Electrónico <span className="text-[10px] text-slate-300 normal-case tracking-normal">(No se puede cambiar)</span></p>
-                <p className="text-slate-500 font-medium bg-slate-50 p-4 rounded-xl border border-slate-100 cursor-not-allowed">
-                  {usuarioAuth?.email}
-                </p>
+              {/* CAMPO: SEGUNDO APELLIDO */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Segundo Apellido</label>
+                {editando ? (
+                  <input type="text" name="segundoApellido" value={formulario.segundoApellido} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-600 p-4 rounded-2xl font-bold text-slate-900 outline-none shadow-lg shadow-blue-600/10" />
+                ) : (
+                  <div className="bg-slate-100 p-5 rounded-2xl border border-slate-200 font-bold text-slate-500">{datosPerfil?.segundoApellido || "N/A"}</div>
+                )}
+              </div>
+
+              {/* CAMPO: TELÉFONO */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono Móvil</label>
+                {editando ? (
+                  <input type="tel" name="telefono" value={formulario.telefono} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-600 p-4 rounded-2xl font-bold text-slate-900 outline-none shadow-lg shadow-blue-600/10" />
+                ) : (
+                  <div className="bg-slate-100 p-5 rounded-2xl border border-slate-200 font-bold text-slate-500">{datosPerfil?.telefono || "N/A"}</div>
+                )}
+              </div>
+
+              {/* CAMPO: EMAIL (SIEMPRE LECTURA) */}
+              <div className="md:col-span-2 space-y-2 opacity-50">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Correo Electrónico (No editable)</label>
+                <div className="bg-slate-200 p-5 rounded-2xl border border-slate-300 font-bold text-slate-600 cursor-not-allowed">{usuarioAuth?.email}</div>
               </div>
             </div>
 
-            <div className="mt-8 pt-8 border-t border-slate-100">
-              {editando ? (
-                <button 
-                  onClick={guardarCambios}
-                  disabled={guardando}
-                  className="bg-blue-600 text-white px-8 py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm uppercase tracking-widest shadow-lg shadow-blue-600/30 active:scale-95 disabled:opacity-50"
-                >
-                  {guardando ? "Guardando..." : "Guardar Cambios"}
-                </button>
-              ) : (
-                <button 
-                  onClick={() => setEditando(true)}
-                  className="bg-slate-900 text-white px-8 py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all text-sm uppercase tracking-widest shadow-lg shadow-slate-900/20 active:scale-95"
-                >
-                  Editar Información
-                </button>
-              )}
+            <div className="mt-12 pt-10 border-t border-slate-50">
+              <button 
+                onClick={editando ? guardarCambios : () => setEditando(true)}
+                disabled={guardando}
+                className={`w-full md:w-auto px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-xl ${editando ? 'bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-700' : 'bg-slate-900 text-white shadow-slate-900/20 hover:bg-slate-800'}`}
+              >
+                {guardando ? "Guardando..." : (editando ? "Confirmar Cambios" : "Editar mi Información")}
+              </button>
             </div>
           </div>
-
         </div>
       </div>
+
+      {/* NOTIFICACIÓN PREMIUM */}
+      {notificacion && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className={`flex items-center gap-4 px-8 py-5 rounded-[2rem] shadow-2xl backdrop-blur-xl border ${notificacion.tipo === 'exito' ? 'bg-slate-900/90 border-emerald-500/50 text-white' : 'bg-red-600/90 border-red-400 text-white'}`}>
+            <div className={`p-2 rounded-full ${notificacion.tipo === 'exito' ? 'bg-emerald-500' : 'bg-white/20'}`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d={notificacion.tipo === 'exito' ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} /></svg>
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest">{notificacion.mensaje}</p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

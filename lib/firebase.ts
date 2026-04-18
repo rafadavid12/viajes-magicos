@@ -1,7 +1,7 @@
 import { getFirestore } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-
+import { getStorage } from "firebase/storage";
 
 // Tus llaves oficiales de Firebase
 const firebaseConfig = {
@@ -22,3 +22,5 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export { app, auth, db };
+
+export const storage = getStorage(app);
