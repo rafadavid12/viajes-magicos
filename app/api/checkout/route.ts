@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 // Inicializamos Stripe con tu llave secreta (Asegúrate de que el nombre coincida con tu .env.local)
+// Inicializamos Stripe con tu llave secreta
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2023-10-16",
+  // Le ponemos "as any" para que Vercel no nos bloquee por la fecha
+  apiVersion: "2023-10-16" as any, 
 });
 
 export async function POST(request: Request) {
