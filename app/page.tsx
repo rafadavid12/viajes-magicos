@@ -76,7 +76,7 @@ export default function Home() {
 
         <div className="relative z-20 text-center px-4 max-w-5xl mx-auto w-full mt-10">
           <span className="inline-block px-6 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold uppercase tracking-[0.3em] shadow-lg mb-6">
-            Agencia de Experiencias Curadas
+            Agencia de Experiencias Mágicas
           </span>
           
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white drop-shadow-xl mb-10 leading-[1.1] tracking-tight">

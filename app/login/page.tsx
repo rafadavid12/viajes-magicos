@@ -85,7 +85,6 @@ export default function Login() {
       
     } catch (error: any) {
       // Borramos el console.error(error.code); que causaba la pantalla negra
-      
       if (error.code === 'auth/email-already-in-use') {
         setError("Este correo ya está registrado. Intenta iniciar sesión.");
       } else if (error.code === 'auth/invalid-credential') {
