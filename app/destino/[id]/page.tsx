@@ -2,8 +2,19 @@
 import { useEffect, useState, use } from "react";
 import { db, auth } from "../../../lib/firebase"; 
 import { doc, getDoc, collection, addDoc } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 export default function DetalleDestino({ params }: { params: Promise<{ id: string }> }) {
+const [usuario, setUsuario] = useState<User | null>(null);
+const router = useRouter();
+
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    setUsuario(user);
+  });
+  return () => unsubscribe();
+}, []);
   const { id } = use(params);
   const [destino, setDestino] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
@@ -331,14 +342,21 @@ return (
               </div>
             </div>
 
+            {usuario ? (
             <button 
-            onClick={manejarPago}
-            disabled={(transporte.esDomicilio && cotizacionMaps === 0) || procesandoPago}
-            className="w-full bg-slate-900 text-white font-black uppercase tracking-widest text-sm py-5 rounded-[1.5rem] shadow-xl shadow-slate-900/20 hover:bg-blue-600 hover:shadow-blue-600/30 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
-            {procesandoPago 
-              ? "Conectando al banco..." 
-              : (transporte.esDomicilio && cotizacionMaps === 0 ? "Calcula tu ruta 👆" : "Proceder al Pago")}
-          </button>
+              onClick={manejarPago} // Aquí pones la función que ya tenías que llama a Stripe
+              className="w-full bg-slate-900 text-white font-black uppercase tracking-widest text-sm py-4 rounded-xl shadow-xl hover:bg-blue-600 transition-all active:scale-95"
+            >
+              Proceder al Pago
+            </button>
+          ) : (
+            <button 
+              onClick={() => router.push('/login')}
+              className="w-full bg-slate-200 text-slate-500 font-black uppercase tracking-widest text-sm py-4 rounded-xl border-2 border-dashed border-slate-300 hover:bg-slate-300 hover:text-slate-700 transition-all"
+            >
+              Inicia sesión para reservar
+            </button>
+          )}
           </div>
         </div>
 

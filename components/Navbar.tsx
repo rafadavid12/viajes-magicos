@@ -59,7 +59,7 @@ export default function Navbar() {
                   </span>
                   <div className="relative">
                     <img 
-                      src={usuario.photoURL || ""} 
+                      src={usuario.photoURL || "https://ui-avatars.com/api/?name=Viajero&background=0f172a&color=fff"}
                       alt="Perfil" 
                       className="w-8 h-8 rounded-full object-cover border border-slate-100 shadow-inner"
                     />
@@ -67,22 +67,34 @@ export default function Navbar() {
                   </div>
                 </button>
 
-                {/* MENÚ DESPLEGABLE ANIMADO */}
+{/* MENÚ DESPLEGABLE ANIMADO */}
                 {menuAbierto && (
                   <div className="absolute right-0 mt-3 w-60 bg-white/95 backdrop-blur-xl border border-slate-100 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-2 transition-all duration-300 animate-in fade-in zoom-in slide-in-from-top-2">
                     <div className="px-5 py-4 border-b border-slate-50">
                       <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">Tu cuenta</p>
                       <p className="text-sm font-bold text-slate-800 truncate">{usuario.email}</p>
                     </div>
+                    
                     <div className="p-1">
+                      {/* 1. Opción: Mi Perfil */}
+                      <Link 
+                        href="/perfil"
+                        className="flex items-center gap-3 p-4 hover:bg-blue-50 rounded-2xl text-xs font-black text-slate-700 uppercase tracking-widest transition-colors group"
+                      >
+                        <span className="group-hover:scale-125 transition-transform">👤</span> Mi Perfil
+                      </Link>
+
+                      {/* 2. Opción: Mis Viajes */}
                       <Link 
                         href="/mis-viajes" 
                         className="flex items-center gap-3 p-4 hover:bg-blue-50 rounded-2xl text-xs font-black text-slate-700 uppercase tracking-widest transition-colors group"
                       >
                         <span className="group-hover:scale-125 transition-transform">📂</span> Mis Viajes
                       </Link>
+
+                      {/* 3. Opción: Salir */}
                       <button 
-                        onClick={() => signOut(auth)}
+                        onClick={() => signOut(auth)} 
                         className="w-full flex items-center gap-3 p-4 hover:bg-red-50 rounded-2xl text-xs font-black text-red-500 uppercase tracking-widest transition-colors group"
                       >
                         <span className="group-hover:rotate-12 transition-transform">🚪</span> Salir
