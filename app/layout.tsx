@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 // Importamos nuestro nuevo componente profesional
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 export const metadata: Metadata = {
   title: "Viajes Mágicos | Marketplace Turístico",
@@ -22,10 +23,8 @@ export default function RootLayout({
         {/* Aquí Next.js inyectará el contenido de cada página */}
         {children}
 
-        {/* Footer (Más adelante lo haremos componente también) */}
-        <footer className="p-10 bg-slate-900 text-white text-center mt-20">
-          <p>© 2026 Viajes Mágicos - Todos los derechos reservados.</p>
-        </footer>
+   {/* Mandamos llamar al Footer profesional */}
+        <Footer />
       </body>
     </html>
   );

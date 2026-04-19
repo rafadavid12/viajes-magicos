@@ -83,13 +83,16 @@ export default function Navbar() {
         {/* LADO DERECHO: Enlaces + Separador + Perfil */}
         <div className="flex items-center gap-5 sm:gap-6">
           
-          {/* ENLACES DESTINOS / PAQUETES */}
+          {/* ENLACES DESTINOS / PAQUETES / NOSOTROS */}
           <div className="hidden md:flex items-center gap-6">
             <Link href="/destinos" className="text-[11px] font-black text-slate-700 hover:text-blue-600 uppercase tracking-widest transition-colors drop-shadow-sm">
               Destinos
             </Link>
             <Link href="/paquetes" className="text-[11px] font-black text-slate-700 hover:text-blue-600 uppercase tracking-widest transition-colors drop-shadow-sm">
               Paquetes
+            </Link>
+            <Link href="/nosotros" className="text-[11px] font-black text-slate-700 hover:text-blue-600 uppercase tracking-widest transition-colors drop-shadow-sm">
+              Nosotros
             </Link>
           </div>
 
