@@ -21,13 +21,46 @@ useEffect(() => {
   const [procesandoPago, setProcesandoPago] = useState(false);
 
   // --- 1. NUEVA LÓGICA DE GRUPOS (TARIFAS DIFERENCIADAS) ---
-  const [adultos, setAdultos] = useState(2);
+  const [adultos, setAdultos] = useState(0);
   const [mayores, setMayores] = useState(0); // Tercera edad / INAPAM
   const [ninos, setNinos] = useState(0);     // 3 a 11 años
 
+  // --- NUEVA LÓGICA DE CALENDARIO ---
+  const [fechaSalida, setFechaSalida] = useState("");
+  const [fechaRegreso, setFechaRegreso] = useState("");
+
+  // Función inteligente que calcula el regreso sola y evita el bug de zona horaria
+  const manejarCambioSalida = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nuevaSalida = e.target.value;
+    setFechaSalida(nuevaSalida);
+
+    if (nuevaSalida) {
+      // Le agregamos 'T12:00:00' para forzar que sea a mediodía y no se recorra al día anterior en México
+      const fechaObj = new Date(nuevaSalida + 'T12:00:00');
+      
+      // Sumamos 2 días (que equivalen a las 2 noches del paquete base)
+      fechaObj.setDate(fechaObj.getDate() + 2); 
+      
+      // Convertimos de vuelta al formato YYYY-MM-DD que necesita el input
+      const regresoFormateado = fechaObj.toISOString().split('T')[0];
+      setFechaRegreso(regresoFormateado);
+    } else {
+      setFechaRegreso("");
+    }
+  };
+
+  // Función auxiliar para mostrar la fecha bonita en el mensaje final
+  const formatearFecha = (fechaString: string) => {
+    if (!fechaString) return "";
+    return new Date(fechaString + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  // -----------------------------------
+
   const totalPersonas = adultos + mayores + ninos;
   // Habitaciones calculadas en base al total de personas (1 cuarto x cada 2 personas)
+
   const numHabitaciones = Math.max(1, Math.ceil(totalPersonas / 2));
+  
   
   // --- 2. LÓGICA DE TRANSPORTE ---
   const [transporte, setTransporte] = useState({ 
@@ -115,18 +148,16 @@ useEffect(() => {
     "Día 2: Excursión principal y tarde de spa o relajación.",
     "Día 3: Desayuno local y regreso cómodo."
   ];
-
-  if (cargando) return <div className="flex justify-center py-20"><div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"></div></div>;
-
 return (
     <main className="min-h-screen bg-slate-50 pb-20 font-sans">
       
-      {/* 1. BANNER PRINCIPAL (NUEVO DISEÑO INMERSIVO DEVSQUAD) */}
+      {/* 1. BANNER PRINCIPAL */}
       <section className="relative w-full pt-40 pb-48 flex flex-col items-center justify-center overflow-hidden bg-slate-900">
-        {/* Imagen de fondo difuminada */}
+        
+        {/* Imagen fija y directa, sin preguntar a Firebase */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-40 transition-transform duration-1000 scale-105"
-          style={{ backgroundImage: `url(${destino?.imagen})` }} 
+          className="absolute inset-0 bg-cover bg-center opacity-60 transition-transform duration-1000 scale-105"
+          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop')" }} 
         ></div>
         
         {/* Degradado que funde el banner con el fondo de la página */}
@@ -222,6 +253,45 @@ return (
               </div>
             </div>
           </section>
+
+          {/* --- NUEVA SECCIÓN DE CALENDARIO AUTOMÁTICO --- */}
+          <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+            <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">📅 Fechas de tu Viaje</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Input de Fecha de Salida (El único que el usuario toca) */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-blue-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">Fecha de Salida</label>
+                <input 
+                  type="date" 
+                  value={fechaSalida}
+                  onChange={manejarCambioSalida}
+                  min={new Date().toLocaleDateString('en-CA')} // Formato seguro para hoy
+                  className="w-full bg-transparent text-slate-900 font-bold outline-none cursor-pointer"
+                />
+              </div>
+
+              {/* Input de Fecha de Regreso (Automático y Bloqueado) */}
+              <div className="p-4 bg-slate-100/50 rounded-2xl border border-slate-200 relative">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">Fecha de Regreso (Auto)</label>
+                <input 
+                  type="date" 
+                  value={fechaRegreso}
+                  readOnly // ¡Esto evita que el usuario lo cambie!
+                  className="w-full bg-transparent text-slate-500 font-bold outline-none cursor-not-allowed"
+                />
+                <div className="absolute top-4 right-4 text-slate-400">🔒</div>
+              </div>
+            </div>
+
+            {/* Mensaje de confirmación con las fechas correctas */}
+            {fechaSalida && fechaRegreso && (
+              <p className="mt-6 text-xs font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center shadow-sm">
+                ✅ VIAJE AGENDADO DEL {formatearFecha(fechaSalida).toUpperCase()} AL {formatearFecha(fechaRegreso).toUpperCase()}
+              </p>
+            )}
+          </section>
+          {/* ----------------------------------- */}
 
           <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
             <h3 className="text-2xl font-black mb-6 text-slate-800">🚐 Logística de Transporte</h3>
