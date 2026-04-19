@@ -71,10 +71,14 @@ useEffect(() => {
   const [calculando, setCalculando] = useState(false);
 
   // --- 3. LÓGICA DE HOSPEDAJE ---
-  const [hospedaje, setHospedaje] = useState({ 
-    tipo: "Posada Base (Incluida)", costoNoche: 0,
+  // --- 3. LÓGICA DE HOSPEDAJE ---
+  const [hospedaje, setHospedaje] = useState<any>({ // <-- Agregamos <any> para que no sea estricto
+    tipo: "Posada Base (Incluida)", 
+    costoNoche: 0,
     foto: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=500",
-    estrellas: "3⭐", descripcion: "Alojamiento estándar ya cubierto en tu paquete."
+    estrellas: "3⭐", 
+    descripcion: "Alojamiento estándar ya cubierto en tu paquete.",
+    ubicacion: "Centro Histórico" // <-- AGREGA ESTA LÍNEA
   });
 
   useEffect(() => {
