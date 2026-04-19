@@ -1,68 +1,53 @@
 "use client";
 import { useEffect, useState, use } from "react";
 import { db, auth } from "../../../lib/firebase"; 
-import { doc, getDoc, collection, addDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, User } from "firebase/auth";
 
 export default function DetalleDestino({ params }: { params: Promise<{ id: string }> }) {
-const [usuario, setUsuario] = useState<User | null>(null);
-const router = useRouter();
+  const [usuario, setUsuario] = useState<User | null>(null);
+  const router = useRouter();
 
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    setUsuario(user);
-  });
-  return () => unsubscribe();
-}, []);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUsuario(user);
+    });
+    return () => unsubscribe();
+  }, []);
+  
   const { id } = use(params);
-  const [destino, setDestino] = useState<any>(null);
+  const [destino, setDestino] = useState<Record<string, any> | null>(null);
   const [cargando, setCargando] = useState(true);
   const [procesandoPago, setProcesandoPago] = useState(false);
 
-  // --- 1. NUEVA LÓGICA DE GRUPOS (TARIFAS DIFERENCIADAS) ---
   const [adultos, setAdultos] = useState(0);
-  const [mayores, setMayores] = useState(0); // Tercera edad / INAPAM
-  const [ninos, setNinos] = useState(0);     // 3 a 11 años
+  const [mayores, setMayores] = useState(0);
+  const [ninos, setNinos] = useState(0);
 
-  // --- NUEVA LÓGICA DE CALENDARIO ---
   const [fechaSalida, setFechaSalida] = useState("");
   const [fechaRegreso, setFechaRegreso] = useState("");
 
-  // Función inteligente que calcula el regreso sola y evita el bug de zona horaria
   const manejarCambioSalida = (e: React.ChangeEvent<HTMLInputElement>) => {
     const nuevaSalida = e.target.value;
     setFechaSalida(nuevaSalida);
-
     if (nuevaSalida) {
-      // Le agregamos 'T12:00:00' para forzar que sea a mediodía y no se recorra al día anterior en México
       const fechaObj = new Date(nuevaSalida + 'T12:00:00');
-      
-      // Sumamos 2 días (que equivalen a las 2 noches del paquete base)
       fechaObj.setDate(fechaObj.getDate() + 2); 
-      
-      // Convertimos de vuelta al formato YYYY-MM-DD que necesita el input
-      const regresoFormateado = fechaObj.toISOString().split('T')[0];
-      setFechaRegreso(regresoFormateado);
+      setFechaRegreso(fechaObj.toISOString().split('T')[0]);
     } else {
       setFechaRegreso("");
     }
   };
 
-  // Función auxiliar para mostrar la fecha bonita en el mensaje final
   const formatearFecha = (fechaString: string) => {
     if (!fechaString) return "";
     return new Date(fechaString + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   };
-  // -----------------------------------
 
   const totalPersonas = adultos + mayores + ninos;
-  // Habitaciones calculadas en base al total de personas (1 cuarto x cada 2 personas)
-
   const numHabitaciones = Math.max(1, Math.ceil(totalPersonas / 2));
   
-  
-  // --- 2. LÓGICA DE TRANSPORTE ---
   const [transporte, setTransporte] = useState({ 
     tipo: "Punto: Toluca Centro", costo: 350, zona: "Centro", esDomicilio: false, detalle: "Catedral de Toluca"
   });
@@ -70,16 +55,8 @@ useEffect(() => {
   const [cotizacionMaps, setCotizacionMaps] = useState(0);
   const [calculando, setCalculando] = useState(false);
 
-  // --- 3. LÓGICA DE HOSPEDAJE ---
-  // --- 3. LÓGICA DE HOSPEDAJE ---
-  const [hospedaje, setHospedaje] = useState<any>({ // <-- Agregamos <any> para que no sea estricto
-    tipo: "Posada Base (Incluida)", 
-    costoNoche: 0,
-    foto: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=500",
-    estrellas: "3⭐", 
-    descripcion: "Alojamiento estándar ya cubierto en tu paquete.",
-    ubicacion: "Centro Histórico" // <-- AGREGA ESTA LÍNEA
-  });
+  // --- 🔥 NUEVA LÓGICA DE HOTELES INTELIGENTE ---
+  const [indiceHotel, setIndiceHotel] = useState(0);
 
   useEffect(() => {
     const obtenerDetalle = async () => {
@@ -102,24 +79,46 @@ useEffect(() => {
     }, 1500);
   };
 
-  // --- EL CEREBRO DE LOS PRECIOS ---
-  const precioBase = destino?.precio || 0;
-  
-  // Descuentos aplicados directamente
-  const subtotalAdultos = precioBase * adultos;
-  const subtotalMayores = (precioBase * 0.8) * mayores; // 20% descuento INAPAM
-  const subtotalNinos = (precioBase * 0.5) * ninos;     // 50% descuento
+  // --- CONFIGURACIÓN DINÁMICA DE TEXTOS ---
+  const nombreLugar = destino?.nombre || "tu destino";
+  const imagenValida = destino?.imagen ? destino.imagen.trim().replace(/['"]/g, '') : "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
 
+  // Opciones de hotel adaptadas al nombre del destino
+  const opcionesHotel = [
+    { 
+      tipo: `Posada en ${nombreLugar} (Incluida)`, 
+      costoNoche: 0, 
+      estrellas: "3⭐",
+      foto: imagenValida, // Usa la misma foto del destino para que se vea nativo
+      descripcion: `Habitación cómoda y céntrica en ${nombreLugar}. Totalmente cubierta en tu paquete.`,
+      ubicacion: "A 2 cuadras de la plaza principal"
+    },
+    { 
+      tipo: `Santuario Luxury ${nombreLugar}`, 
+      costoNoche: 2500, 
+      estrellas: "5⭐",
+      foto: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500",
+      descripcion: "Sube de nivel. Vista espectacular, alberca templada y desayuno bufet.",
+      ubicacion: "Zona exclusiva del pueblo"
+    }
+  ];
+
+  const hospedaje = opcionesHotel[indiceHotel];
+
+  const precioBase = destino?.precio || 0;
+  const subtotalAdultos = precioBase * adultos;
+  const subtotalMayores = (precioBase * 0.8) * mayores; 
+  const subtotalNinos = (precioBase * 0.5) * ninos;     
   const subtotalTour = subtotalAdultos + subtotalMayores + subtotalNinos;
   const costoTransporteFinal = transporte.esDomicilio ? cotizacionMaps : (transporte.costo * totalPersonas);
   const subtotalHospedaje = hospedaje.costoNoche * numHabitaciones;
-  
   const granTotal = subtotalTour + costoTransporteFinal + subtotalHospedaje;
 
   const manejarPago = async () => {
+    if (totalPersonas === 0) return alert("Por favor, selecciona al menos 1 pasajero para continuar.");
+    if (!fechaSalida) return alert("Por favor, selecciona la fecha de salida.");
     setProcesandoPago(true);
 
-    // Definimos los detalles según el punto de encuentro
     const detallesLogistica = {
       "Punto: Toluca Centro": { hora: "07:45 AM", calle: "Portal Constitución #10, Col. Centro, Toluca (Frente a Catedral)" },
       "Metepec": { hora: "08:15 AM", calle: "Plaza Juárez, Metepec Centro (Kiosco principal)" },
@@ -132,12 +131,11 @@ useEffect(() => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idDestino: id,
-          nombreDestino: destino?.nombre || "Destino DevSquad",
+          nombreDestino: nombreLugar,
           granTotal: granTotal,
           totalPersonas: totalPersonas,
           horaCita: detallesLogistica.hora,
           direccionCompleta: detallesLogistica.calle,
-          // --- NUEVOS DATOS PARA EL VOUCHER ---
           fechaSalida: fechaSalida,
           fechaRegreso: fechaRegreso,
           hotelTipo: hospedaje.tipo,
@@ -146,44 +144,40 @@ useEffect(() => {
           adultos: adultos,
           mayores: mayores,
           ninos: ninos
-          // ------------------------------------
         }),
       });
       
       const data = await res.json();
-      
       if (data.url) {
         window.location.href = data.url; 
       } else {
-        console.error("No se recibió URL de Stripe", data);
         setProcesandoPago(false);
       }
     } catch (error) {
-      console.error("Error al procesar el pago", error);
       setProcesandoPago(false);
     }
   };
-  // Datos simulados de la agencia
-  const etiquetas = destino?.etiquetas || ["🐾 Pet Friendly", "👴 Accesible", "👨‍👩‍👧 Familiar"];
+
+  const etiquetas = destino?.estilos || ["✨ Mágico", "🎒 Aventura"];
   const duracion = destino?.duracion || "3 Días / 2 Noches";
+  
+  // ITINERARIO DINÁMICO (Si no existe en Firebase, crea uno inteligente)
   const itinerario = destino?.itinerario || [
-    "Día 1: Llegada, check-in y recorrido suave sin pendientes fuertes.",
-    "Día 2: Excursión principal y tarde de spa o relajación.",
-    "Día 3: Desayuno local y regreso cómodo."
+    `Día 1: Llegada a ${nombreLugar}, check-in en el hotel y recorrido caminando por las calles céntricas.`,
+    `Día 2: Excursión principal guiada a los atractivos de ${nombreLugar} y tarde libre.`,
+    `Día 3: Desayuno con gastronomía local, tiempo para comprar artesanías y regreso a casa.`
   ];
-return (
+
+  if (cargando) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600">Cargando la magia...</div>;
+
+  return (
     <main className="min-h-screen bg-slate-50 pb-20 font-sans">
       
-      {/* 1. BANNER PRINCIPAL */}
       <section className="relative w-full pt-40 pb-48 flex flex-col items-center justify-center overflow-hidden bg-slate-900">
-        
-        {/* Imagen fija y directa, sin preguntar a Firebase */}
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-60 transition-transform duration-1000 scale-105"
-          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop')" }} 
+          style={{ backgroundImage: `url('${imagenValida}')` }} 
         ></div>
-        
-        {/* Degradado que funde el banner con el fondo de la página */}
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-50 z-10"></div>
 
         <div className="relative z-20 text-center px-6 max-w-4xl mx-auto w-full">
@@ -193,20 +187,18 @@ return (
             </span>
             {etiquetas.map((tag: string) => (
               <span key={tag} className="bg-white/10 backdrop-blur-md text-white px-5 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest border border-white/20 shadow-lg">
-                {tag}
+                {tag.replace('_', ' ')}
               </span>
             ))}
           </div>
           <h1 className="text-6xl md:text-8xl font-black text-white drop-shadow-2xl tracking-tighter italic">
-            {destino?.nombre}
+            {nombreLugar}
           </h1>
         </div>
       </section>
 
-      {/* CONTENEDOR PRINCIPAL: Subimos el contenido con -mt-20 para que flote sobre el banner */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-10 -mt-20 relative z-30 px-6">
         
-        {/* COLUMNA IZQUIERDA: TARJETAS SUAVIZADAS */}
         <div className="lg:col-span-2 space-y-8">
           
           <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
@@ -239,9 +231,9 @@ return (
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">12 a 59 años</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => adultos > 1 && setAdultos(adultos - 1)} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm active:scale-95 transition-transform">-</button>
+                  <button onClick={() => adultos > 0 && setAdultos(adultos - 1)} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm">-</button>
                   <span className="text-2xl font-black text-slate-800 w-6 text-center">{adultos}</span>
-                  <button onClick={() => setAdultos(adultos + 1)} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm active:scale-95 transition-transform">+</button>
+                  <button onClick={() => setAdultos(adultos + 1)} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-xl hover:bg-white text-slate-600 bg-white shadow-sm">+</button>
                 </div>
               </div>
 
@@ -254,9 +246,9 @@ return (
                   <p className="text-xs text-blue-600/70 font-black uppercase tracking-widest mt-1">60+ años</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => mayores > 0 && setMayores(mayores - 1)} className="w-10 h-10 rounded-full border border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm active:scale-95 transition-transform">-</button>
+                  <button onClick={() => mayores > 0 && setMayores(mayores - 1)} className="w-10 h-10 rounded-full border border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm">-</button>
                   <span className="text-2xl font-black text-slate-800 w-6 text-center">{mayores}</span>
-                  <button onClick={() => setMayores(mayores + 1)} className="w-10 h-10 rounded-full border border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm active:scale-95 transition-transform">+</button>
+                  <button onClick={() => setMayores(mayores + 1)} className="w-10 h-10 rounded-full border border-blue-200 flex items-center justify-center text-xl hover:bg-white text-blue-600 bg-white shadow-sm">+</button>
                 </div>
               </div>
 
@@ -269,52 +261,33 @@ return (
                   <p className="text-xs text-orange-600/70 font-black uppercase tracking-widest mt-1">3 a 11 años</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => ninos > 0 && setNinos(ninos - 1)} className="w-10 h-10 rounded-full border border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm active:scale-95 transition-transform">-</button>
+                  <button onClick={() => ninos > 0 && setNinos(ninos - 1)} className="w-10 h-10 rounded-full border border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm">-</button>
                   <span className="text-2xl font-black text-slate-800 w-6 text-center">{ninos}</span>
-                  <button onClick={() => setNinos(ninos + 1)} className="w-10 h-10 rounded-full border border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm active:scale-95 transition-transform">+</button>
+                  <button onClick={() => setNinos(ninos + 1)} className="w-10 h-10 rounded-full border border-orange-200 flex items-center justify-center text-xl hover:bg-white text-orange-600 bg-white shadow-sm">+</button>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* --- NUEVA SECCIÓN DE CALENDARIO AUTOMÁTICO --- */}
           <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
             <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">📅 Fechas de tu Viaje</h3>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Input de Fecha de Salida (El único que el usuario toca) */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-blue-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">Fecha de Salida</label>
-                <input 
-                  type="date" 
-                  value={fechaSalida}
-                  onChange={manejarCambioSalida}
-                  min={new Date().toLocaleDateString('en-CA')} // Formato seguro para hoy
-                  className="w-full bg-transparent text-slate-900 font-bold outline-none cursor-pointer"
-                />
+                <input type="date" value={fechaSalida} onChange={manejarCambioSalida} min={new Date().toLocaleDateString('en-CA')} className="w-full bg-transparent text-slate-900 font-bold outline-none cursor-pointer"/>
               </div>
-
-              {/* Input de Fecha de Regreso (Automático y Bloqueado) */}
               <div className="p-4 bg-slate-100/50 rounded-2xl border border-slate-200 relative">
                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">Fecha de Regreso (Auto)</label>
-                <input 
-                  type="date" 
-                  value={fechaRegreso}
-                  readOnly // ¡Esto evita que el usuario lo cambie!
-                  className="w-full bg-transparent text-slate-500 font-bold outline-none cursor-not-allowed"
-                />
+                <input type="date" value={fechaRegreso} readOnly className="w-full bg-transparent text-slate-500 font-bold outline-none cursor-not-allowed"/>
                 <div className="absolute top-4 right-4 text-slate-400">🔒</div>
               </div>
             </div>
-
-            {/* Mensaje de confirmación con las fechas correctas */}
             {fechaSalida && fechaRegreso && (
               <p className="mt-6 text-xs font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center shadow-sm">
                 ✅ VIAJE AGENDADO DEL {formatearFecha(fechaSalida).toUpperCase()} AL {formatearFecha(fechaRegreso).toUpperCase()}
               </p>
             )}
           </section>
-          {/* ----------------------------------- */}
 
           <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
             <h3 className="text-2xl font-black mb-6 text-slate-800">🚐 Logística de Transporte</h3>
@@ -358,32 +331,16 @@ return (
           <section className="bg-white/90 backdrop-blur-sm border border-slate-100 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
             <h3 className="text-2xl font-black text-slate-800 mb-6">🏨 Tu Hospedaje</h3>
             <div className="space-y-4">
-              {[
-                { 
-                  tipo: "Posada Base (Incluida)", costoNoche: 0, estrellas: "3⭐",
-                  foto: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=500",
-                  descripcion: "Habitación cómoda céntrica. Incluida en tu paquete.",
-                  ubicacion: "A 2 cuadras de la plaza principal" // <-- ¡Nuevo!
-                },
-                { 
-                  tipo: "Upgrade: Santuario Luxury", costoNoche: 2500, estrellas: "5⭐",
-                  foto: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500",
-                  descripcion: "Sube de nivel. Vista al lago, alberca y desayuno.",
-                  ubicacion: "Zona hotelera, frente al lago" // <-- ¡Nuevo!
-                }
-              ].map((h) => (
-                <div key={h.tipo} onClick={() => setHospedaje(h)}
-                  className={`flex flex-col md:flex-row gap-6 p-4 rounded-3xl border-2 cursor-pointer transition-all active:scale-[0.98] ${hospedaje.tipo === h.tipo ? 'border-blue-600 bg-blue-50/30 shadow-md' : 'border-slate-100 hover:bg-slate-50'}`}>
+              {opcionesHotel.map((h, i) => (
+                <div key={h.tipo} onClick={() => setIndiceHotel(i)}
+                  className={`flex flex-col md:flex-row gap-6 p-4 rounded-3xl border-2 cursor-pointer transition-all active:scale-[0.98] ${indiceHotel === i ? 'border-blue-600 bg-blue-50/30 shadow-md' : 'border-slate-100 hover:bg-slate-50'}`}>
                   <img src={h.foto} className="w-full md:w-56 h-32 object-cover rounded-2xl" alt={h.tipo} />
                   <div className="flex-1 py-2 pr-2">
                     <div className="flex justify-between items-start">
-                      
-                      {/* Aquí agrupamos el Título, las Estrellas y la NUEVA UBICACIÓN */}
                       <div>
                         <h4 className="text-lg font-bold text-slate-800">{h.tipo} <span className="text-yellow-500 text-sm">{h.estrellas}</span></h4>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">📍 {h.ubicacion}</p>
                       </div>
-
                       <div className="text-right">
                         <p className="font-black text-blue-600 text-xl">{h.costoNoche === 0 ? "GRATIS" : `+ $${h.costoNoche}`}</p>
                         {h.costoNoche > 0 && <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1">Por Habitación</p>}
@@ -397,7 +354,6 @@ return (
           </section>
         </div>
 
-        {/* 2. COLUMNA DERECHA: FACTURA EFECTO CRISTAL */}
         <div className="relative">
           <div className="sticky top-32 bg-white/70 backdrop-blur-2xl border border-white rounded-[2.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.15)] p-8 md:p-10 z-10 transition-all">
             <div className="text-center mb-6 border-b border-slate-200/50 pb-6">
@@ -406,7 +362,6 @@ return (
             </div>
             
             <div className="space-y-4 mb-8 text-slate-600">
-              
               {adultos > 0 && (
                 <div className="flex justify-between items-center">
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Tour Adultos ({adultos}x)</div>
@@ -445,10 +400,11 @@ return (
 
             {usuario ? (
             <button 
-              onClick={manejarPago} // Aquí pones la función que ya tenías que llama a Stripe
-              className="w-full bg-slate-900 text-white font-black uppercase tracking-widest text-sm py-4 rounded-xl shadow-xl hover:bg-blue-600 transition-all active:scale-95"
+              onClick={manejarPago}
+              disabled={procesandoPago}
+              className="w-full bg-slate-900 text-white font-black uppercase tracking-widest text-sm py-4 rounded-xl shadow-xl hover:bg-blue-600 transition-all active:scale-95 disabled:opacity-50"
             >
-              Proceder al Pago
+              {procesandoPago ? "Procesando..." : "Proceder al Pago"}
             </button>
           ) : (
             <button 
@@ -460,7 +416,6 @@ return (
           )}
           </div>
         </div>
-
       </div>
     </main>
   );
