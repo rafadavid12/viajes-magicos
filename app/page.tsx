@@ -138,10 +138,15 @@ export default function Home() {
             </p>
           </div>
           
-          {busquedaActiva && (
+          {busquedaActiva ? (
             <button onClick={limpiarFiltros} className="text-xs font-black text-white bg-slate-900 px-6 py-3 rounded-xl uppercase tracking-widest hover:bg-red-500 transition-colors shadow-md">
               Limpiar filtros ✕
             </button>
+          ) : (
+            /* AQUÍ ESTÁ TU NUEVO ENLACE DE VER MÁS */
+            <Link href="/destinos" className="text-xs font-black text-blue-600 px-6 py-3 rounded-xl uppercase tracking-widest hover:bg-blue-50 transition-colors">
+              Ver todos los destinos →
+            </Link>
           )}
         </div>
 
@@ -153,8 +158,10 @@ export default function Home() {
           </div>
         ) : resultados.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {resultados.map((viaje) => (
+            {/* LA MAGIA: .slice(0, 6) HACE QUE SOLO SE MUESTREN 6 SI NO ESTÁS BUSCANDO */}
+            {(busquedaActiva ? resultados : resultados.slice(0, 6)).map((viaje) => (
               <div key={viaje.id} className="bg-white rounded-[2rem] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col justify-between">
+                {/* ... (El resto de tu tarjeta queda exactamente igual) ... */}
                 
                 <div>
                   <div className="relative w-full h-56 rounded-[1.5rem] overflow-hidden mb-6">
