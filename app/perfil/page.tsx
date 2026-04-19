@@ -86,21 +86,39 @@ export default function Perfil() {
     return () => unsubscribeAuth();
   }, [router]);
 
+  // Maneja los cambios y aplica bloqueos inteligentes
   const manejarCambio = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormulario({ ...formulario, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    if (name === "telefono") {
+      // Si es teléfono, solo acepta números
+      const soloNumeros = value.replace(/[^0-9]/g, '');
+      setFormulario({ ...formulario, [name]: soloNumeros.substring(0, 10) });
+    } else {
+      // Si es nombre o apellidos, solo acepta letras, espacios y acentos
+      const soloLetras = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+      setFormulario({ ...formulario, [name]: soloLetras });
+    }
   };
 
+  // La validación fuerte antes de mandar a la base de datos
   const guardarCambios = async () => {
     const nombreLimpio = formulario.nombre.trim();
     const primerLimpio = formulario.primerApellido.trim();
-    let segundoLimpio = formulario.segundoApellido.trim();
+    const segundoLimpio = formulario.segundoApellido.trim();
+    const telefonoLimpio = formulario.telefono.trim();
 
+    // 1. Validar campos vacíos obligatorios
     if (!nombreLimpio || !primerLimpio) {
       setNotificacion({ tipo: 'error', mensaje: 'Nombre y Primer Apellido son obligatorios' });
       return;
     }
 
-    if (!segundoLimpio) { segundoLimpio = "X"; }
+    // 2. Validar que el teléfono exista y tenga exactamente 10 números
+    if (!telefonoLimpio || telefonoLimpio.length !== 10) {
+      setNotificacion({ tipo: 'error', mensaje: 'El teléfono debe tener 10 dígitos exactos' });
+      return;
+    }
 
     setGuardando(true);
     try {
@@ -108,39 +126,60 @@ export default function Perfil() {
       const nuevosDatos = {
         nombre: nombreLimpio,
         primerApellido: primerLimpio,
-        segundoApellido: segundoLimpio,
-        telefono: formulario.telefono.trim() || "S/N"
+        segundoApellido: segundoLimpio, // Si está vacío, se guarda vacío, sin la "X"
+        telefono: telefonoLimpio
       };
 
       await updateDoc(docRef, nuevosDatos);
       setEditando(false); 
-      setNotificacion({ tipo: 'exito', mensaje: '¡Perfil actualizado!' });
+      setNotificacion({ tipo: 'exito', mensaje: '¡Perfil actualizado con éxito!' });
     } catch (error) {
-      setNotificacion({ tipo: 'error', mensaje: 'Error al guardar cambios' });
+      setNotificacion({ tipo: 'error', mensaje: 'Ocurrió un error al guardar' });
     } finally {
       setGuardando(false);
     }
   };
 
   const manejarSubidaImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const archivo = e.target.files?.[0];
-    if (!archivo) return;
-    setCargandoFoto(true);
-    try {
-      const storageRef = ref(storage, `usuarios/${usuarioAuth.uid}/foto_perfil.jpg`);
-      const uploadTask = uploadBytesResumable(storageRef, archivo);
-      await uploadTask;
-      const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-      await updateProfile(usuarioAuth, { photoURL: downloadURL });
-      await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { photoURL: downloadURL });
-      setNotificacion({ tipo: 'exito', mensaje: 'Imagen actualizada' });
-    } catch (error) {
-      setNotificacion({ tipo: 'error', mensaje: 'Error al subir foto' });
-    } finally {
-      setCargandoFoto(false);
-    }
-  };
+      const archivo = e.target.files?.[0];
+      if (!archivo) return;
 
+      // Validación de tamaño: Firestore tiene un límite de 1MB por documento.
+      // Limitamos a 500KB para estar seguros y no saturar la base de datos.
+      if (archivo.size > 500000) {
+        setNotificacion({ tipo: 'error', mensaje: 'La foto es muy pesada. Elige una menor a 500KB' });
+        return;
+      }
+
+      setCargandoFoto(true);
+
+      try {
+        const reader = new FileReader();
+        
+        reader.onloadend = async () => {
+          const base64String = reader.result as string;
+
+          // 1. Guardamos la imagen como texto directamente en Firestore
+          // Esto es lo que permite que la foto sea persistente sin usar Storage.
+          await updateDoc(doc(db, "usuarios", usuarioAuth.uid), {
+            photoURL: base64String
+          });
+
+          // NOTA: Eliminamos 'updateProfile' de Auth porque no soporta textos tan largos (Base64).
+          // Como tu componente ya lee la foto de 'datosPerfil', esto es suficiente.
+
+          setNotificacion({ tipo: 'exito', mensaje: '¡Imagen de perfil actualizada!' });
+          setCargandoFoto(false);
+        };
+
+        reader.readAsDataURL(archivo);
+
+      } catch (error) {
+        console.error("Error al procesar imagen:", error);
+        setNotificacion({ tipo: 'error', mensaje: 'Error al procesar la foto' });
+        setCargandoFoto(false);
+      }
+    };
   if (cargando) return (
     <div className="min-h-screen flex justify-center items-center bg-slate-50">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -184,7 +223,7 @@ export default function Perfil() {
             </div>
             
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
-              {datosPerfil?.nombre} {datosPerfil?.primerApellido}
+              {datosPerfil?.nombre} {datosPerfil?.primerApellido} {datosPerfil?.segundoApellido}
             </h2>
             <p className="text-blue-600 font-bold text-sm mb-8">{usuarioAuth?.email}</p>
             
@@ -241,13 +280,23 @@ export default function Perfil() {
                 )}
               </div>
 
-              {/* CAMPO: TELÉFONO */}
+              {/* CAMPO: TELÉFONO (CON VALIDACIÓN) */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono Móvil</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono Móvil (10 dígitos)</label>
                 {editando ? (
-                  <input type="tel" name="telefono" value={formulario.telefono} onChange={manejarCambio} className="w-full bg-white border-2 border-blue-600 p-4 rounded-2xl font-bold text-slate-900 outline-none shadow-lg shadow-blue-600/10" />
+                  <input 
+                    type="tel" 
+                    name="telefono" 
+                    value={formulario.telefono} 
+                    onChange={manejarCambio} 
+                    maxLength={10} 
+                    placeholder="Ej. 7221234567"
+                    className="w-full bg-white border-2 border-blue-600 p-4 rounded-2xl font-bold text-slate-900 outline-none shadow-lg shadow-blue-600/10" 
+                  />
                 ) : (
-                  <div className="bg-slate-100 p-5 rounded-2xl border border-slate-200 font-bold text-slate-500">{datosPerfil?.telefono || "N/A"}</div>
+                  <div className="bg-slate-100 p-5 rounded-2xl border border-slate-200 font-bold text-slate-500">
+                    {datosPerfil?.telefono ? `${datosPerfil.telefono.slice(0,2)} ${datosPerfil.telefono.slice(2,6)} ${datosPerfil.telefono.slice(6,10)}` : "Falta registrar"}
+                  </div>
                 )}
               </div>
 

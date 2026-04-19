@@ -69,7 +69,7 @@ export default function Navbar() {
   const photoURL = datosFirestore?.photoURL || usuario?.photoURL;
 
   return (
-    <nav className="fixed top-0 left-0 w-full bg-white/40 backdrop-blur-lg border-b border-white/30 z-50 shadow-sm transition-all">
+    <nav className="fixed top-0 left-0 w-full bg-white/40 backdrop-blur-lg border-b border-white/30 z-50 shadow-sm transition-all print:hidden">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         
         {/* LOGO Y DEVSQUAD */}

@@ -18,9 +18,7 @@ export default function MisViajes() {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [cargando, setCargando] = useState(true);
   const [usuario, setUsuario] = useState<User | null>(null);
-  
-  // ESTADO NUEVO: Controla qué ticket está abierto en la pantalla emergente
-  const [ticketAbierto, setTicketAbierto] = useState<Reserva | null>(null);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -105,62 +103,19 @@ export default function MisViajes() {
                   </div>
                 </div>
 
-                {/* AQUÍ CONECTAMOS EL BOTÓN */}
-                <button 
-                  onClick={() => setTicketAbierto(reserva)}
-                  className="w-full bg-slate-50 text-slate-700 font-black uppercase tracking-widest text-xs py-4 rounded-xl border border-slate-200 hover:bg-slate-900 hover:text-white transition-all active:scale-95"
+                {/* AQUÍ CONECTAMOS EL BOTÓN DIRECTO AL VOUCHER COMPLETO */}
+                <Link 
+                  href={`/pago-exitoso?session_id=${reserva.stripeSessionId}`}
+                  className="w-full block text-center bg-slate-50 text-slate-700 font-black uppercase tracking-widest text-xs py-4 rounded-xl border border-slate-200 hover:bg-slate-900 hover:text-white transition-all active:scale-95"
                 >
                   Ver Detalles del Ticket
-                </button>
+                </Link>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* VENTANA EMERGENTE (MODAL) DEL TICKET */}
-      {ticketAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl transform transition-all">
-            
-            <div className="bg-slate-900 p-8 text-center relative">
-              <button 
-                onClick={() => setTicketAbierto(null)}
-                className="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors font-bold"
-              >
-                ✕
-              </button>
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] mb-2">Pase de Abordar</p>
-              <h2 className="text-3xl font-black text-white italic">{ticketAbierto.destinoNombre}</h2>
-            </div>
-
-            <div className="p-8">
-              <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-4 mb-4">
-                <span className="text-slate-500 font-bold text-sm">Titular</span>
-                <span className="font-black text-slate-800">{usuario.displayName || "Viajero"}</span>
-              </div>
-              <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-4 mb-4">
-                <span className="text-slate-500 font-bold text-sm">Estado del Pago</span>
-                <span className="font-black text-emerald-600 flex items-center gap-1">✅ {ticketAbierto.estado || "Confirmado"}</span>
-              </div>
-              <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-4 mb-4">
-                <span className="text-slate-500 font-bold text-sm">Total Facturado</span>
-                <span className="font-black text-slate-900">${ticketAbierto.totalPagado} MXN</span>
-              </div>
-              <div className="flex flex-col items-center pt-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ID de Transacción Stripe</p>
-                <p className="font-mono text-xs text-slate-500 bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">{ticketAbierto.stripeSessionId}</p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
-              <button onClick={() => window.print()} className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-800 transition-colors">
-                🖨️ Imprimir Recibo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

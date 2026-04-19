@@ -23,7 +23,14 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmarPassword, setConfirmarPassword] = useState("");
-  
+  // Filtros para evitar números en nombres y letras en teléfono
+  const manejarNombre = (val: string) => setNombre(val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ""));
+  const manejarPrimerApellido = (val: string) => setPrimerApellido(val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ""));
+  const manejarSegundoApellido = (val: string) => setSegundoApellido(val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ""));
+  const manejarTelefono = (val: string) => {
+    const soloNumeros = val.replace(/[^0-9]/g, "");
+    setTelefono(soloNumeros.substring(0, 10)); // Corta a 10 dígitos
+  };
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
   const router = useRouter();
@@ -47,32 +54,54 @@ export default function Login() {
 
     try {
       if (esRegistro) {
-        // 1. Validar que las contraseñas coincidan
+        // --- 1. BLOQUE DE VALIDACIONES NUEVAS ---
+        
+        // Validar que no haya campos obligatorios vacíos
+        if (!nombre.trim() || !primerApellido.trim() || !telefono.trim() || !email.trim() || !password.trim()) {
+          setError("Todos los campos marcados con * son obligatorios.");
+          setCargando(false);
+          return;
+        }
+
+        // Validar formato de correo electrónico
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          setError("Por favor, ingresa un correo electrónico válido.");
+          setCargando(false);
+          return;
+        }
+
+        // Validar que el teléfono tenga exactamente 10 dígitos
+        if (telefono.length !== 10) {
+          setError("El teléfono debe tener exactamente 10 dígitos.");
+          setCargando(false);
+          return;
+        }
+
+        // Validar que las contraseñas coincidan
         if (password !== confirmarPassword) {
           setError("Las contraseñas no coinciden.");
           setCargando(false);
           return;
         }
 
-        // 2. Crear la cuenta en Firebase Auth
-        // 2. Crear la cuenta en Firebase Auth
+        // --- 2. PROCESO DE REGISTRO (Tu código original) ---
+        
         const credenciales = await createUserWithEmailAndPassword(auth, email, password);
         const usuario = credenciales.user;
 
-        // NUEVO: Le inyectamos el nombre al sistema de sesión (Auth)
         await updateProfile(usuario, {
           displayName: nombre
         });
 
-        // 3. Guardar el resto de los datos en Firestore (Base de datos)
         await setDoc(doc(db, "usuarios", usuario.uid), {
-          nombre: nombre,
-          primerApellido: primerApellido,
-          segundoApellido: segundoApellido,
+          nombre: nombre.trim(),
+          primerApellido: primerApellido.trim(),
+          segundoApellido: segundoApellido.trim(),
           telefono: telefono,
           correo: email,
           fechaRegistro: new Date().toISOString(),
-          rol: "cliente" // Útil para el futuro si quieres tener administradores
+          rol: "cliente"
         });
 
       } else {
@@ -80,11 +109,9 @@ export default function Login() {
         await signInWithEmailAndPassword(auth, email, password);
       }
       
-      // Si todo sale bien, lo mandamos al inicio
       router.push("/"); 
       
     } catch (error: any) {
-      // Borramos el console.error(error.code); que causaba la pantalla negra
       if (error.code === 'auth/email-already-in-use') {
         setError("Este correo ya está registrado. Intenta iniciar sesión.");
       } else if (error.code === 'auth/invalid-credential') {
@@ -151,24 +178,57 @@ export default function Login() {
           {esRegistro && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Nombre(s)</label>
-                  <input type="text" required value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" placeholder="Juan" />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Apellido Paterno</label>
-                  <input type="text" required value={primerApellido} onChange={(e) => setPrimerApellido(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" placeholder="Pérez" />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Apellido Materno</label>
-                  <input type="text" required value={segundoApellido} onChange={(e) => setSegundoApellido(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" placeholder="López" />
-                </div>
+              {/* NOMBRE */}
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Nombre(s)</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={nombre} 
+                  onChange={(e) => manejarNombre(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" 
+                  placeholder="Juan" 
+                />
               </div>
 
+              {/* APELLIDO PATERNO */}
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Teléfono</label>
-                <input type="tel" required value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" placeholder="55 1234 5678" />
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Primer Apellido</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={primerApellido} 
+                  onChange={(e) => manejarPrimerApellido(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" 
+                  placeholder="Pérez" 
+                />
               </div>
+
+              {/* APELLIDO MATERNO */}
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Segundo Apellido</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={segundoApellido} 
+                  onChange={(e) => manejarSegundoApellido(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" 
+                  placeholder="López" 
+                />
+              </div>
+            </div>
+          <div>
+            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">Teléfono (10 dígitos)</label>
+            <input 
+              type="tel" 
+              required 
+              value={telefono} 
+              onChange={(e) => manejarTelefono(e.target.value)} 
+              maxLength={10}
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 p-3.5 rounded-xl focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium outline-none" 
+              placeholder="7221234567" 
+            />
+          </div>
             </>
           )}
 

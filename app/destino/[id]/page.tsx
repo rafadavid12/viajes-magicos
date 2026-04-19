@@ -113,33 +113,52 @@ useEffect(() => {
   const granTotal = subtotalTour + costoTransporteFinal + subtotalHospedaje;
 
   const manejarPago = async () => {
-  setProcesandoPago(true);
-  try {
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        idDestino: id,
-        nombreDestino: destino?.nombre || "Destino DevSquad",
-        granTotal: granTotal,
-        totalPersonas: totalPersonas,
-      }),
-    });
-    
-    const data = await res.json();
-    
-    if (data.url) {
-      // Redirigimos a la página segura de Stripe
-      window.location.href = data.url; 
-    } else {
-      console.error("No se recibió URL de Stripe", data);
+    setProcesandoPago(true);
+
+    // Definimos los detalles según el punto de encuentro
+    const detallesLogistica = {
+      "Punto: Toluca Centro": { hora: "07:45 AM", calle: "Portal Constitución #10, Col. Centro, Toluca (Frente a Catedral)" },
+      "Metepec": { hora: "08:15 AM", calle: "Plaza Juárez, Metepec Centro (Kiosco principal)" },
+      "A Domicilio": { hora: "08:30 AM", calle: direccion || "Dirección proporcionada por el cliente" }
+    }[transporte.tipo] || { hora: "08:00 AM", calle: "Punto de encuentro por confirmar" };
+
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idDestino: id,
+          nombreDestino: destino?.nombre || "Destino DevSquad",
+          granTotal: granTotal,
+          totalPersonas: totalPersonas,
+          horaCita: detallesLogistica.hora,
+          direccionCompleta: detallesLogistica.calle,
+          // --- NUEVOS DATOS PARA EL VOUCHER ---
+          fechaSalida: fechaSalida,
+          fechaRegreso: fechaRegreso,
+          hotelTipo: hospedaje.tipo,
+          hotelUbicacion: hospedaje.ubicacion || "Ubicación del destino",
+          transporteTipo: transporte.tipo,
+          adultos: adultos,
+          mayores: mayores,
+          ninos: ninos
+          // ------------------------------------
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.url) {
+        window.location.href = data.url; 
+      } else {
+        console.error("No se recibió URL de Stripe", data);
+        setProcesandoPago(false);
+      }
+    } catch (error) {
+      console.error("Error al procesar el pago", error);
       setProcesandoPago(false);
     }
-  } catch (error) {
-    console.error("Error al procesar el pago", error);
-    setProcesandoPago(false);
-  }
-};
+  };
   // Datos simulados de la agencia
   const etiquetas = destino?.etiquetas || ["🐾 Pet Friendly", "👴 Accesible", "👨‍👩‍👧 Familiar"];
   const duracion = destino?.duracion || "3 Días / 2 Noches";
@@ -339,12 +358,14 @@ return (
                 { 
                   tipo: "Posada Base (Incluida)", costoNoche: 0, estrellas: "3⭐",
                   foto: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=500",
-                  descripcion: "Habitación cómoda céntrica. Incluida en tu paquete."
+                  descripcion: "Habitación cómoda céntrica. Incluida en tu paquete.",
+                  ubicacion: "A 2 cuadras de la plaza principal" // <-- ¡Nuevo!
                 },
                 { 
                   tipo: "Upgrade: Santuario Luxury", costoNoche: 2500, estrellas: "5⭐",
                   foto: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=500",
-                  descripcion: "Sube de nivel. Vista al lago, alberca y desayuno."
+                  descripcion: "Sube de nivel. Vista al lago, alberca y desayuno.",
+                  ubicacion: "Zona hotelera, frente al lago" // <-- ¡Nuevo!
                 }
               ].map((h) => (
                 <div key={h.tipo} onClick={() => setHospedaje(h)}
@@ -352,10 +373,16 @@ return (
                   <img src={h.foto} className="w-full md:w-56 h-32 object-cover rounded-2xl" alt={h.tipo} />
                   <div className="flex-1 py-2 pr-2">
                     <div className="flex justify-between items-start">
-                      <h4 className="text-lg font-bold text-slate-800">{h.tipo} <span className="text-yellow-500 text-sm">{h.estrellas}</span></h4>
+                      
+                      {/* Aquí agrupamos el Título, las Estrellas y la NUEVA UBICACIÓN */}
+                      <div>
+                        <h4 className="text-lg font-bold text-slate-800">{h.tipo} <span className="text-yellow-500 text-sm">{h.estrellas}</span></h4>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">📍 {h.ubicacion}</p>
+                      </div>
+
                       <div className="text-right">
                         <p className="font-black text-blue-600 text-xl">{h.costoNoche === 0 ? "GRATIS" : `+ $${h.costoNoche}`}</p>
-                        {h.costoNoche > 0 && <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1">Noche x Hab</p>}
+                        {h.costoNoche > 0 && <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1">Por Habitación</p>}
                       </div>
                     </div>
                     <p className="text-sm text-slate-500 mt-2 font-medium">{h.descripcion}</p>
