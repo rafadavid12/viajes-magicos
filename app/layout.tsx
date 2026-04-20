@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 // Importamos nuestro nuevo componente profesional
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import Chatbot from "./components/Chatbot";
 
 export const metadata: Metadata = {
   title: "Viajes Mágicos | Marketplace Turístico",
@@ -23,8 +24,11 @@ export default function RootLayout({
         {/* Aquí Next.js inyectará el contenido de cada página */}
         {children}
 
-   {/* Mandamos llamar al Footer profesional */}
+        {/* Mandamos llamar al Footer profesional */}
         <Footer />
+
+        {/* El Chatbot flotante que aparecerá en todo el sitio */}
+        <Chatbot />
       </body>
     </html>
   );
