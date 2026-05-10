@@ -56,22 +56,6 @@ export default function Home() {
     setBusquedaActiva(false);
   };
 
-
-  const modoMantenimiento = true; 
-
-  if (modoMantenimiento) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center font-sans text-center p-6 selection:bg-blue-500">
-        <h1 className="text-5xl md:text-7xl font-black text-white mb-4 tracking-tighter italic">
-          Viajes Mágicos
-        </h1>
-        <p className="text-slate-400 text-lg max-w-md mx-auto">
-          Estamos afinando los últimos detalles. La plataforma estará disponible durante la presentación oficial. 🚀
-        </p>
-      </div>
-    );
-  }
-      {/* ... todo lo que ya tenías ... */}
   return (
     <main className="min-h-screen bg-slate-50">
       
