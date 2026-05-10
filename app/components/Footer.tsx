@@ -95,8 +95,12 @@ export default function Footer() {
           </p>
           
           <div className="flex gap-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            <Link href="#" className="hover:text-white transition-colors">Privacidad</Link>
-            <Link href="#" className="hover:text-white transition-colors">Términos</Link>
+            <Link href="/privacidad" className="hover:text-amber-500 transition-colors">
+              Aviso de Privacidad
+            </Link>
+            <Link href="/terminos" className="hover:text-amber-500 transition-colors">
+              Términos y Condiciones
+            </Link>
             <span className="hover:text-blue-500 cursor-pointer transition-colors">Instagram</span>
             <span className="hover:text-blue-500 cursor-pointer transition-colors">Facebook</span>
           </div>
