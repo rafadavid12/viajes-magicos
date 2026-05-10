@@ -56,8 +56,7 @@ export default function Home() {
     setBusquedaActiva(false);
   };
 
-  export default function Home() {
-  // 🔥 MODO MANTENIMIENTO: Cambia a "false" cuando vayas a exponer
+
   const modoMantenimiento = true; 
 
   if (modoMantenimiento) {
